@@ -10,6 +10,8 @@ import TuOpinion from './components/TuOpinion';
 import Comentarios from './components/Comentarios';
 import ComentariosCarrusel from './components/ComentariosCarrusel';
 import Blackjack from './components/Blackjack';
+import UserProfile from './components/UserProfile';
+import EditProfile from './components/EditProfile';
 
 // Importar imágenes
 import blackjackImage from './assets/images/blackjack.jpg';
@@ -23,7 +25,9 @@ function App() {
   const [showLogin, setShowLogin] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showTuOpinion, setShowTuOpinion] = useState(false);
-  // Eliminado: Perfil
+  const [showProfile, setShowProfile] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [currentView, setCurrentView] = useState('home'); // 'home' o 'comentarios'
   const [currentUser, setCurrentUser] = useState(null);
 
@@ -53,6 +57,45 @@ function App() {
 
   const handleRegister = () => {
     setShowRegister(true);
+  };
+
+  const handleOpenProfile = () => {
+    setShowEditProfile(true);
+  };
+
+  const handleUpdateProfile = (usuarioActualizado) => {
+    setCurrentUser(usuarioActualizado);
+  };
+
+  const handleDeleteAccount = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteAccount = async () => {
+    try {
+      // Importar el servicio de eliminación
+      const { eliminarApostador } = await import('./services/apostadorService');
+      
+      // Eliminar de Xano
+      await eliminarApostador(currentUser.id);
+
+      // Eliminar de localStorage local
+      const usuariosLocal = JSON.parse(localStorage.getItem('usuarios_local') || '[]');
+      const usuariosActualizados = usuariosLocal.filter(u => u.id !== currentUser.id);
+      localStorage.setItem('usuarios_local', JSON.stringify(usuariosActualizados));
+
+      // Cerrar sesión
+      setIsLoggedIn(false);
+      setCurrentUser(null);
+      localStorage.removeItem('usuarioActual');
+      setShowDeleteConfirm(false);
+      
+      alert('Cuenta eliminada exitosamente');
+    } catch (error) {
+      console.error('Error al eliminar cuenta:', error);
+      alert('Error al eliminar la cuenta: ' + error.message);
+      setShowDeleteConfirm(false);
+    }
   };
 
   const handleLogout = () => {
@@ -93,6 +136,8 @@ function App() {
         onLogin={handleLogin}
         onRegister={handleRegister}
         onLogout={handleLogout}
+        onOpenProfile={handleOpenProfile}
+        onDeleteAccount={handleDeleteAccount}
         currentUser={currentUser}
         currentView={currentView}
         />
@@ -207,7 +252,32 @@ function App() {
         />
       )}
 
-      {/* Perfil eliminado */}
+      {showProfile && currentUser && (
+        <UserProfile
+          usuario={currentUser}
+          onClose={() => setShowProfile(false)}
+          onLogout={confirmLogout}
+          onUpdateSuccess={handleUpdateProfile}
+        />
+      )}
+
+      {showEditProfile && currentUser && (
+        <EditProfile
+          usuario={currentUser}
+          onClose={() => setShowEditProfile(false)}
+          onUpdateSuccess={handleUpdateProfile}
+        />
+      )}
+
+      {showDeleteConfirm && (
+        <ConfirmModal
+          mensaje="¿Estás seguro de que deseas eliminar tu cuenta? Esta acción eliminará tu usuario de la base de datos y no se puede deshacer."
+          onConfirm={confirmDeleteAccount}
+          onCancel={() => setShowDeleteConfirm(false)}
+          confirmText="Sí, eliminar mi cuenta"
+          cancelText="Cancelar"
+        />
+      )}
     </div>
   );
 }

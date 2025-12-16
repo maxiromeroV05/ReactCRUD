@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { validarLogin } from '../services/apostadorService';
 
 function Login({ onClose, onLoginSuccess }) {
   const [formData, setFormData] = useState({
@@ -8,6 +9,8 @@ function Login({ onClose, onLoginSuccess }) {
   const [mensaje, setMensaje] = useState('');
   const [mensajeTipo, setMensajeTipo] = useState(''); // 'success' o 'error'
   const [mostrarContrasena, setMostrarContrasena] = useState(false);
+  const [cargando, setCargando] = useState(false);
+  const [mostrarAyuda, setMostrarAyuda] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -17,37 +20,65 @@ function Login({ onClose, onLoginSuccess }) {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setCargando(true);
+    setMensaje('');
 
-    // Obtener usuarios del localStorage
-    const usuarios = JSON.parse(localStorage.getItem('usuarios') || '[]');
-    
-    // Buscar usuario por correo o nombre de usuario
-    const usuario = usuarios.find(
-      u => (u.correo === formData.emailOrUsername || u.username === formData.emailOrUsername) 
-           && u.contrasena === formData.password
-    );
+    try {
+      console.log('=== Iniciando validación de login ===');
+      console.log('Email/Username:', formData.emailOrUsername);
+      console.log('Password (longitud):', formData.password.length);
+      
+      // Validar login con la API
+      const usuario = await validarLogin(formData.emailOrUsername, formData.password);
+      
+      console.log('Resultado de validación:', usuario ? 'Usuario encontrado' : 'Usuario no encontrado');
+      if (usuario) {
+        console.log('Datos del usuario:', { 
+          id: usuario.id, 
+          nombre: usuario.nombre, 
+          username: usuario.username 
+        });
+      }
 
-    if (usuario) {
-      // Login exitoso
-      setMensaje(`¡Bienvenido/a ${usuario.nombre} ${usuario.apellido}!`);
-      setMensajeTipo('success');
-      
-      // Guardar sesión actual
-      localStorage.setItem('usuarioActual', JSON.stringify(usuario));
-      
-      // Cerrar modal y actualizar estado después de 1.5 segundos
-      setTimeout(() => {
-        if (onLoginSuccess) {
-          onLoginSuccess(usuario);
+      if (usuario) {
+        // Login exitoso
+        setMensaje(`¡Bienvenido/a ${usuario.nombre} ${usuario.apellido}!`);
+        setMensajeTipo('success');
+        
+        // Guardar sesión actual (incluyendo el ID para futuras operaciones)
+        localStorage.setItem('usuarioActual', JSON.stringify(usuario));
+        
+        // Cerrar modal y actualizar estado después de 1.5 segundos
+        setTimeout(() => {
+          if (onLoginSuccess) {
+            onLoginSuccess(usuario);
+          }
+          onClose();
+        }, 1500);
+      } else {
+        // Login fallido - Verificar el motivo
+        const usuariosLocal = JSON.parse(localStorage.getItem('usuarios_local') || '[]');
+        const usuarioExisteLocal = usuariosLocal.find(
+          u => u.correo === formData.emailOrUsername || u.username === formData.emailOrUsername
+        );
+        
+        if (usuarioExisteLocal) {
+          setMensaje('Contraseña incorrecta. Por favor, verifica tu contraseña.');
+        } else {
+          setMensaje('Usuario no encontrado. Si ya tienes cuenta en Xano, regístrate nuevamente desde este navegador.');
+          setMostrarAyuda(true);
         }
-        onClose();
-      }, 1500);
-    } else {
-      // Login fallido
-      setMensaje('Usuario/Correo o contraseña incorrectos');
+        setMensajeTipo('error');
+      }
+    } catch (error) {
+      // Manejar errores de la API
+      console.error('Error en login:', error);
+      setMensaje('Error al iniciar sesión. Por favor, intenta nuevamente.');
       setMensajeTipo('error');
+    } finally {
+      setCargando(false);
     }
   };
 
@@ -138,13 +169,40 @@ function Login({ onClose, onLoginSuccess }) {
             </div>
 
             <div className="fila fila-botones">
-              <button type="submit" className="btn btn-primary">Iniciar sesión</button>
+              <button type="submit" className="btn btn-primary" disabled={cargando}>
+                {cargando ? 'Iniciando sesión...' : 'Iniciar sesión'}
+              </button>
             </div>
 
             {mensaje && (
               <p className={`mensaje ${mensajeTipo}`}>
                 {mensaje}
               </p>
+            )}
+
+            {mostrarAyuda && (
+              <div style={{
+                background: 'rgba(255, 215, 0, 0.1)',
+                border: '1px solid rgba(255, 215, 0, 0.3)',
+                borderRadius: '8px',
+                padding: '15px',
+                marginTop: '15px',
+                textAlign: 'left'
+              }}>
+                <h4 style={{ color: 'var(--gold)', marginTop: 0 }}>💡 ¿No puedes acceder?</h4>
+                <p style={{ fontSize: '14px', marginBottom: '10px' }}>
+                  Si ya tenías una cuenta en Xano, necesitas importar tus datos:
+                </p>
+                <ol style={{ fontSize: '14px', paddingLeft: '20px', margin: '10px 0' }}>
+                  <li>Abre en otra pestaña: <code style={{ background: '#1a1a1a', padding: '2px 6px', borderRadius: '3px' }}>http://localhost:3000/utils.html</code></li>
+                  <li>Click en "📥 Importar Usuarios de Xano"</li>
+                  <li>Usa la contraseña temporal para hacer login</li>
+                  <li>Luego cambia tu contraseña en tu perfil</li>
+                </ol>
+                <p style={{ fontSize: '13px', color: '#999', marginBottom: 0 }}>
+                  O simplemente regístrate de nuevo con los mismos datos.
+                </p>
+              </div>
             )}
           </form>
         </main>

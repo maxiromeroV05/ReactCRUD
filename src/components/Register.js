@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { crearApostador } from '../services/apostadorService';
 
 function Register({ onClose, onRegisterSuccess }) {
   const [formData, setFormData] = useState({
@@ -15,6 +16,7 @@ function Register({ onClose, onRegisterSuccess }) {
   const [mensajeTipo, setMensajeTipo] = useState(''); // 'success' o 'error'
   const [mostrarContrasena, setMostrarContrasena] = useState(false);
   const [mostrarConfirmarContrasena, setMostrarConfirmarContrasena] = useState(false);
+  const [cargando, setCargando] = useState(false);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -24,86 +26,90 @@ function Register({ onClose, onRegisterSuccess }) {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setCargando(true);
+    setMensaje('');
 
     // Validaciones
     if (!formData.mayor) {
       setMensaje('Debes ser mayor de edad para registrarte');
       setMensajeTipo('error');
+      setCargando(false);
       return;
     }
 
     if (!formData.terminos) {
       setMensaje('Debes aceptar los términos y condiciones');
       setMensajeTipo('error');
+      setCargando(false);
       return;
     }
 
     if (formData.contrasena.length < 6) {
       setMensaje('La contraseña debe tener al menos 6 caracteres');
       setMensajeTipo('error');
+      setCargando(false);
       return;
     }
 
     if (formData.contrasena !== formData.confirmarContrasena) {
       setMensaje('Las contraseñas no coinciden');
       setMensajeTipo('error');
+      setCargando(false);
       return;
     }
 
-    // Guardar en localStorage
-    const usuarios = JSON.parse(localStorage.getItem('usuarios') || '[]');
-    
-    // Verificar si el correo ya existe
-    const correoExiste = usuarios.find(u => u.correo === formData.correo);
-    if (correoExiste) {
-      setMensaje('Este correo ya está registrado');
+    try {
+      // Preparar datos para enviar a la API
+      const datosApostador = {
+        nombre: formData.nombre,
+        apellido: formData.apellido,
+        username: formData.username,
+        correo: formData.correo,
+        contrasena: formData.contrasena
+        // Nota: el saldo se manejará en el backend de Xano
+      };
+
+      console.log('=== Registrando nuevo usuario ===');
+      console.log('Datos a enviar:', { ...datosApostador, contrasena: '***' });
+
+      // Llamar a la API para crear el apostador
+      const nuevoApostador = await crearApostador(datosApostador);
+      
+      console.log('Usuario registrado exitosamente:', nuevoApostador);
+
+      // Mensaje de éxito
+      setMensaje(`¡Registro exitoso! Bienvenido/a ${formData.nombre} ${formData.apellido}`);
+      setMensajeTipo('success');
+
+      // Limpiar formulario
+      setFormData({
+        nombre: '',
+        apellido: '',
+        username: '',
+        correo: '',
+        contrasena: '',
+        confirmarContrasena: '',
+        mayor: false,
+        terminos: false
+      });
+
+      // Redirigir al login después de 2 segundos
+      setTimeout(() => {
+        if (onRegisterSuccess) {
+          onRegisterSuccess();
+        }
+      }, 2000);
+
+    } catch (error) {
+      // Manejar errores
+      console.error('Error en registro:', error);
+      setMensaje(error.message || 'Error al registrar usuario. Por favor, intenta nuevamente.');
       setMensajeTipo('error');
-      return;
+    } finally {
+      setCargando(false);
     }
-
-    // Verificar si el nombre de usuario ya existe
-    const usernameExiste = usuarios.find(u => u.username === formData.username);
-    if (usernameExiste) {
-      setMensaje('Este nombre de usuario ya está en uso');
-      setMensajeTipo('error');
-      return;
-    }
-
-    // Agregar nuevo usuario
-    usuarios.push({
-      nombre: formData.nombre,
-      apellido: formData.apellido,
-      username: formData.username,
-      correo: formData.correo,
-      contrasena: formData.contrasena,
-      saldo: 1000 // Saldo inicial
-    });
-    localStorage.setItem('usuarios', JSON.stringify(usuarios));
-
-    // Mensaje de éxito
-    setMensaje(`¡Registro exitoso! Bienvenido/a ${formData.nombre} ${formData.apellido}`);
-    setMensajeTipo('success');
-
-    // Limpiar formulario
-    setFormData({
-      nombre: '',
-      apellido: '',
-      username: '',
-      correo: '',
-      contrasena: '',
-      confirmarContrasena: '',
-      mayor: false,
-      terminos: false
-    });
-
-    // Redirigir al login después de 2 segundos
-    setTimeout(() => {
-      if (onRegisterSuccess) {
-        onRegisterSuccess();
-      }
-    }, 2000);
   };
 
   return (
@@ -323,7 +329,9 @@ function Register({ onClose, onRegisterSuccess }) {
             </div>
 
             <div className="fila fila-botones">
-              <button type="submit" className="btn btn-primary">Registrarse</button>
+              <button type="submit" className="btn btn-primary" disabled={cargando}>
+                {cargando ? 'Registrando...' : 'Registrarse'}
+              </button>
             </div>
 
             {mensaje && (

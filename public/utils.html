@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Utilidades Casino21 - Limpiar localStorage</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .container {
+            background: #2a2a2a;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #ffd700;
+            text-align: center;
+        }
+        button {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background: #b91c1c;
+            transform: scale(1.05);
+        }
+        button.safe {
+            background: #059669;
+        }
+        button.safe:hover {
+            background: #047857;
+        }
+        .info {
+            background: rgba(255, 215, 0, 0.1);
+            border-left: 4px solid #ffd700;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .warning {
+            background: rgba(220, 38, 38, 0.1);
+            border-left: 4px solid #dc2626;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        pre {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        #output {
+            margin-top: 20px;
+            padding: 15px;
+            background: #1a1a1a;
+            border-radius: 5px;
+            min-height: 100px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎰 Utilidades Casino21</h1>
+        
+        <div class="info">
+            <h3>ℹ️ Información</h3>
+            <p>Esta herramienta te permite gestionar el almacenamiento local del sistema de autenticación.</p>
+        </div>
+
+        <h2>Ver Datos Almacenados</h2>
+        <button class="safe" onclick="verUsuarios()">👀 Ver Usuarios Locales</button>
+        <button class="safe" onclick="verUsuarioActual()">👤 Ver Usuario Actual</button>
+        <button class="safe" onclick="verUsuariosXano()">☁️ Ver Usuarios en Xano</button>
+
+        <h2>Importar Usuarios de Xano</h2>
+        <div class="info">
+            <p><strong>💡 ¿Tienes usuarios en Xano que no puedes acceder?</strong></p>
+            <p>Esta función importará todos los usuarios de Xano a localStorage con una contraseña temporal.</p>
+            <p>Contraseña temporal por defecto: <code>123456</code></p>
+        </div>
+        <input type="text" id="passwordTemp" placeholder="Contraseña temporal (ej: 123456)" value="123456" 
+               style="padding: 10px; margin: 10px 5px; width: 300px; border-radius: 5px; border: 1px solid #444; background: #1a1a1a; color: #fff;">
+        <button class="safe" onclick="importarUsuarios()">📥 Importar Usuarios de Xano</button>
+
+        <h2>Limpiar Datos</h2>
+        <div class="warning">
+            <strong>⚠️ Advertencia:</strong> Estas acciones no se pueden deshacer.
+        </div>
+        <button onclick="limpiarUsuariosLocales()">🗑️ Limpiar Usuarios Locales</button>
+        <button onclick="cerrarSesion()">🚪 Cerrar Sesión</button>
+        <button onclick="limpiarTodo()">💣 Limpiar Todo</button>
+
+        <div id="output"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'https://x8ki-letl-twmt.n7.xano.io/api:W_i_EmGE';
+
+        async function verUsuariosXano() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h3>⏳ Obteniendo usuarios de Xano...</h3>';
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/apostador`);
+                if (!response.ok) throw new Error('Error al obtener usuarios');
+                
+                const usuarios = await response.json();
+                output.innerHTML = `
+                    <h3>Usuarios en Xano (${usuarios.length})</h3>
+                    <pre>${JSON.stringify(usuarios.map(u => ({
+                        id: u.id,
+                        nombre: u.nombre,
+                        apellido: u.apellido,
+                        username: u.username,
+                        correo: u.correo
+                    })), null, 2)}</pre>
+                `;
+            } catch (error) {
+                output.innerHTML = `<h3 style="color: #dc2626">❌ Error: ${error.message}</h3>`;
+            }
+        }
+
+        async function importarUsuarios() {
+            const passwordTemp = document.getElementById('passwordTemp').value;
+            const output = document.getElementById('output');
+            
+            if (!passwordTemp) {
+                output.innerHTML = '<h3 style="color: #dc2626">❌ Por favor ingresa una contraseña temporal</h3>';
+                return;
+            }
+            
+            output.innerHTML = '<h3>⏳ Importando usuarios desde Xano...</h3>';
+            
+            try {
+                // Obtener usuarios de Xano
+                const response = await fetch(`${API_BASE_URL}/apostador`);
+                if (!response.ok) throw new Error('Error al obtener usuarios de Xano');
+                
+                const apostadores = await response.json();
+                
+                // Obtener usuarios locales existentes
+                const usuariosLocal = JSON.parse(localStorage.getItem('usuarios_local') || '[]');
+                const correosExistentes = usuariosLocal.map(u => u.correo);
+                
+                // Filtrar usuarios que NO están en localStorage
+                const usuariosNuevos = apostadores.filter(a => !correosExistentes.includes(a.correo));
+                
+                if (usuariosNuevos.length === 0) {
+                    output.innerHTML = `
+                        <h3 style="color: #10b981">✅ Todos los usuarios ya están importados</h3>
+                        <p>Total de usuarios locales: ${usuariosLocal.length}</p>
+                        <p>Total de usuarios en Xano: ${apostadores.length}</p>
+                    `;
+                    return;
+                }
+                
+                // Agregar contraseña temporal a usuarios nuevos
+                const usuariosConPassword = usuariosNuevos.map(u => ({
+                    ...u,
+                    contrasena: passwordTemp
+                }));
+                
+                // Guardar en localStorage
+                const todosLosUsuarios = [...usuariosLocal, ...usuariosConPassword];
+                localStorage.setItem('usuarios_local', JSON.stringify(todosLosUsuarios));
+                
+                output.innerHTML = `
+                    <h3 style="color: #10b981">✅ Usuarios importados exitosamente</h3>
+                    <p><strong>Contraseña temporal:</strong> <code>${passwordTemp}</code></p>
+                    <p><strong>Usuarios importados:</strong> ${usuariosNuevos.length}</p>
+                    <p><strong>Total de usuarios locales:</strong> ${todosLosUsuarios.length}</p>
+                    <h4>Usuarios importados:</h4>
+                    <pre>${JSON.stringify(usuariosNuevos.map(u => ({
+                        username: u.username,
+                        correo: u.correo,
+                        passwordTemporal: passwordTemp
+                    })), null, 2)}</pre>
+                    <div class="warning">
+                        <p><strong>⚠️ Importante:</strong> Estos usuarios ahora pueden hacer login con:</p>
+                        <ul>
+                            <li>Usuario/Correo: el que tienen en Xano</li>
+                            <li>Contraseña: <strong>${passwordTemp}</strong></li>
+                        </ul>
+                        <p>Deberían cambiar su contraseña después de hacer login.</p>
+                    </div>
+                `;
+            } catch (error) {
+                output.innerHTML = `<h3 style="color: #dc2626">❌ Error: ${error.message}</h3>`;
+            }
+        }
+
+        function verUsuarios() {
+            const usuarios = localStorage.getItem('usuarios_local');
+            const output = document.getElementById('output');
+            
+            if (!usuarios || usuarios === '[]') {
+                output.innerHTML = '<h3>No hay usuarios locales almacenados</h3>';
+                return;
+            }
+            
+            try {
+                const usuariosArray = JSON.parse(usuarios);
+                output.innerHTML = `
+                    <h3>Usuarios Locales (${usuariosArray.length})</h3>
+                    <pre>${JSON.stringify(usuariosArray.map(u => ({
+                        id: u.id,
+                        nombre: u.nombre,
+                        apellido: u.apellido,
+                        username: u.username,
+                        correo: u.correo,
+                        tienePassword: !!u.contrasena
+                    })), null, 2)}</pre>
+                `;
+            } catch (e) {
+                output.innerHTML = `<h3 style="color: #dc2626">Error al leer datos: ${e.message}</h3>`;
+            }
+        }
+
+        function verUsuarioActual() {
+            const usuario = localStorage.getItem('usuarioActual');
+            const output = document.getElementById('output');
+            
+            if (!usuario) {
+                output.innerHTML = '<h3>No hay sesión activa</h3>';
+                return;
+            }
+            
+            try {
+                const usuarioObj = JSON.parse(usuario);
+                output.innerHTML = `
+                    <h3>Usuario Actual</h3>
+                    <pre>${JSON.stringify({
+                        id: usuarioObj.id,
+                        nombre: usuarioObj.nombre,
+                        apellido: usuarioObj.apellido,
+                        username: usuarioObj.username,
+                        correo: usuarioObj.correo
+                    }, null, 2)}</pre>
+                `;
+            } catch (e) {
+                output.innerHTML = `<h3 style="color: #dc2626">Error al leer datos: ${e.message}</h3>`;
+            }
+        }
+
+        function limpiarUsuariosLocales() {
+            if (confirm('¿Estás seguro de que quieres eliminar TODOS los usuarios locales? Esta acción no se puede deshacer.')) {
+                localStorage.removeItem('usuarios_local');
+                localStorage.removeItem('usuarios_temp');
+                document.getElementById('output').innerHTML = `
+                    <h3 style="color: #10b981">✅ Usuarios locales eliminados</h3>
+                    <p>Los usuarios registrados ya no tienen contraseñas almacenadas localmente.</p>
+                    <p>Necesitarán registrarse nuevamente para crear nuevas contraseñas.</p>
+                `;
+            }
+        }
+
+        function cerrarSesion() {
+            if (confirm('¿Cerrar la sesión actual?')) {
+                localStorage.removeItem('usuarioActual');
+                document.getElementById('output').innerHTML = `
+                    <h3 style="color: #10b981">✅ Sesión cerrada</h3>
+                    <p>El usuario actual ha sido desconectado.</p>
+                `;
+            }
+        }
+
+        function limpiarTodo() {
+            if (confirm('¿ELIMINAR TODOS LOS DATOS? Esto incluye usuarios locales y sesión actual.')) {
+                if (confirm('¿Estás COMPLETAMENTE SEGURO? Esta acción NO se puede deshacer.')) {
+                    localStorage.clear();
+                    document.getElementById('output').innerHTML = `
+                        <h3 style="color: #10b981">✅ Todo limpio</h3>
+                        <p>Todos los datos del localStorage han sido eliminados.</p>
+                        <p>La aplicación está en estado inicial.</p>
+                    `;
+                }
+            }
+        }
+
+        // Mostrar información al cargar
+        window.onload = function() {
+            const output = document.getElementById('output');
+            output.innerHTML = `
+                <h3>Estado del Sistema</h3>
+                <p>📊 Usuarios locales: ${JSON.parse(localStorage.getItem('usuarios_local') || '[]').length}</p>
+                <p>👤 Sesión activa: ${localStorage.getItem('usuarioActual') ? 'Sí' : 'No'}</p>
+            `;
+        };
+    </script>
+</body>
+</html>
